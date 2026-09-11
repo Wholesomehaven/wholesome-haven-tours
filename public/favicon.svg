@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="Wholesome Haven">
+  <rect width="16" height="16" rx="3" fill="#F4EFE6"/>
+  <path fill="#5F7A4A" d="M8 2 L2 8 V14 H14 V8 Z"/>
+  <rect x="7" y="10" width="2" height="4" fill="#F4EFE6"/>
+</svg>

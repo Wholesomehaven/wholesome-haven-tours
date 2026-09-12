@@ -9,3 +9,9 @@ dist
 .env.*
 !.env.example
 artifacts
+AGENTS.md
+screenshots
+attachments
+.node_modules.lock
+.grok/*
+!.grok/app-env.json

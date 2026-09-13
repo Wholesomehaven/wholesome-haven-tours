@@ -1,8 +1,9 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "NITRO_PRESET=node-server npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "npm run start"
 healthcheckPath = "/"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

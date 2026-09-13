@@ -1,6 +1,9 @@
 [variables]
 NIXPACKS_NODE_VERSION = "22"
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+NITRO_PRESET = "node-server"
+NPM_CONFIG_LEGACY_PEER_DEPS = "true"
 
-# Railway's default `npm ci` fails when lockfile has dual ajv versions.
+# Fallback if Docker is not used. Default `npm ci` fails on this lockfile.
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm install --no-audit --no-fund"]

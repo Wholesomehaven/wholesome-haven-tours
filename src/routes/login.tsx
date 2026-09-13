@@ -56,7 +56,7 @@ function Login() {
     try {
       const { error: err } = await authClient.requestPasswordReset({
         email: email.trim().toLowerCase(),
-        redirectTo: "/reset-password",
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (err) {
         setError(err.message ?? "Could not send a reset email.");

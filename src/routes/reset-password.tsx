@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/reset-password")({
   validateSearch: (search: Record<string, unknown>) => ({
-    token: typeof search.token === "string" ? search.token : "",
-    error: typeof search.error === "string" ? search.error : "",
+    token: typeof search.token === "string" && search.token ? search.token : undefined,
+    error: typeof search.error === "string" && search.error ? search.error : undefined,
   }),
   component: ResetPassword,
   head: () => ({
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/reset-password")({
 });
 
 function ResetPassword() {
-  const { token, error: tokenError } = Route.useSearch();
+  const { token = "", error: tokenError } = Route.useSearch();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(

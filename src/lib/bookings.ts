@@ -4,6 +4,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { GATE_SESSION_MARKER_COOKIE } from "@/lib/auth/gate-session-marker";
 import { SITE } from "./site";
+import { notifyBookingCreated, notifyBookingStatus } from "./tour-emails";
 import {
   addDaysIso,
   facilityDateTime,
@@ -358,12 +359,24 @@ export const createBooking = createServerFn({ method: "POST" })
       `;
       const row = rows[0];
       if (!row) return { ok: false as const, error: "Could not save your request." };
+      const booking = {
+        id: row.id,
+        guestName: data.guestName,
+        guestEmail: data.guestEmail.toLowerCase(),
+        guestPhone: data.guestPhone.trim(),
+        partySize: data.partySize,
+        residentName: data.residentName || null,
+        notes: data.notes || null,
+        tourDate: String(row.tour_date).slice(0, 10),
+        tourTime: row.tour_time,
+      };
+      void notifyBookingCreated(booking);
       return {
         ok: true as const,
         booking: {
           id: row.id,
-          tourDate: String(row.tour_date).slice(0, 10),
-          tourTime: row.tour_time,
+          tourDate: booking.tourDate,
+          tourTime: booking.tourTime,
           guestName: data.guestName,
           tourMinutes: settings.tourMinutes,
         },
@@ -497,6 +510,15 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
         set status = ${data.status}, updated_at = now()
         where id = ${data.id}
       `;
+    }
+    const [row] = await sql<Parameters<typeof mapBooking>[0]>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, created_at
+      from bookings where id = ${data.id}
+    `;
+    if (row) {
+      void notifyBookingStatus(mapBooking(row), data.status);
     }
     return { ok: true as const };
   });

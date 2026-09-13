@@ -16,6 +16,8 @@ import { Route as BookAdminRouteImport } from './routes/book-admin'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiMailGoogleCallbackRouteImport } from './routes/api/mail/google/callback'
+import { Route as ApiMailGoogleConnectRouteImport } from './routes/api/mail/google/connect'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +54,16 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMailGoogleCallbackRoute = ApiMailGoogleCallbackRouteImport.update({
+  id: '/api/mail/google/callback',
+  path: '/api/mail/google/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMailGoogleConnectRoute = ApiMailGoogleConnectRouteImport.update({
+  id: '/api/mail/google/connect',
+  path: '/api/mail/google/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +73,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
+  '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +84,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
+  '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +96,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
+  '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +109,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/api/auth/$'
+    | '/api/mail/google/callback'
+    | '/api/mail/google/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +120,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/api/auth/$'
+    | '/api/mail/google/callback'
+    | '/api/mail/google/connect'
   id:
     | '__root__'
     | '/'
@@ -109,6 +131,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/api/auth/$'
+    | '/api/mail/google/callback'
+    | '/api/mail/google/connect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -119,6 +143,8 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiMailGoogleCallbackRoute: typeof ApiMailGoogleCallbackRoute
+  ApiMailGoogleConnectRoute: typeof ApiMailGoogleConnectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -172,6 +198,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mail/google/callback': {
+      id: '/api/mail/google/callback'
+      path: '/api/mail/google/callback'
+      fullPath: '/api/mail/google/callback'
+      preLoaderRoute: typeof ApiMailGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mail/google/connect': {
+      id: '/api/mail/google/connect'
+      path: '/api/mail/google/connect'
+      fullPath: '/api/mail/google/connect'
+      preLoaderRoute: typeof ApiMailGoogleConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -183,6 +223,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiMailGoogleCallbackRoute: ApiMailGoogleCallbackRoute,
+  ApiMailGoogleConnectRoute: ApiMailGoogleConnectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

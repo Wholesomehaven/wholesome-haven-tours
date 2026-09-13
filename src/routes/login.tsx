@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { peekStaffResetLink } from "@/lib/auth/peek-reset";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SITE } from "@/lib/site";
 import { Button } from "@/components/ui/button";
@@ -24,13 +25,15 @@ function captureBearerFromResponse(headers: Headers | null | undefined) {
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const [mode, setMode] = useState<"in" | "up" | "forgot">("in");
   const [email, setEmail] = useState<string>(SITE.adminEmail);
   const [password, setPassword] = useState("");
   const [name, setName] = useState("Haven Admin");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [previewResetUrl, setPreviewResetUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setShowSocial(/\bgrok/.test(window.location.hostname));
@@ -40,6 +43,38 @@ function Login() {
     return <div className="min-h-screen bg-bg" />;
   }
   if (user) return <Navigate to="/admin" />;
+
+  async function onForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setPreviewResetUrl(null);
+    if (email.trim().toLowerCase() !== SITE.adminEmail) {
+      setError(`Staff accounts must use ${SITE.adminEmail}.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error: err } = await authClient.requestPasswordReset({
+        email: email.trim().toLowerCase(),
+        redirectTo: "/reset-password",
+      });
+      if (err) {
+        setError(err.message ?? "Could not send a reset email.");
+        return;
+      }
+      try {
+        const peek = await peekStaffResetLink({ data: { email: email.trim().toLowerCase() } });
+        setPreviewResetUrl(peek.url);
+      } catch {
+        /* production has no preview link */
+      }
+      setResetSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send a reset email.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,12 +148,73 @@ function Login() {
             <span className="text-xs tracking-[0.16em] text-muted uppercase">Staff sign in</span>
           </span>
         </Link>
-        <h1 className="font-display mt-6 text-3xl">Tour desk</h1>
+        <h1 className="font-display mt-6 text-3xl">
+          {mode === "forgot" ? "Forgot password" : "Tour desk"}
+        </h1>
         <p className="mt-2 text-sm text-muted">
-          Sign in with {SITE.adminEmail} to review private tour requests.
+          {mode === "forgot"
+            ? `We’ll email a reset link to ${SITE.adminEmail}.`
+            : `Sign in with ${SITE.adminEmail} to review private tour requests.`}
         </p>
 
         {authEnabled ? (
+          mode === "forgot" ? (
+            resetSent ? (
+              <div className="mt-6 space-y-3 text-sm">
+                <p>
+                  If that email is on file, check the inbox for {SITE.adminEmail}. The link
+                  expires in one hour.
+                </p>
+                {previewResetUrl ? (
+                  <p>
+                    Preview link (not emailed):{" "}
+                    <a className="text-primary underline" href={previewResetUrl}>
+                      Choose a new password
+                    </a>
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => {
+                    setMode("in");
+                    setResetSent(false);
+                    setPreviewResetUrl(null);
+                    setError(null);
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
+              <form className="mt-6 space-y-3" onSubmit={onForgot}>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="username"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                {error ? <p className="text-sm text-danger">{error}</p> : null}
+                <Button type="submit" className="w-full" disabled={busy}>
+                  {busy ? "Sending…" : "Email reset link"}
+                </Button>
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => {
+                    setMode("in");
+                    setError(null);
+                  }}
+                >
+                  Back to sign in
+                </button>
+              </form>
+            )
+          ) : (
           <>
             <form className="mt-6 space-y-3" onSubmit={onSubmit}>
               {mode === "up" ? (
@@ -152,6 +248,19 @@ function Login() {
                 {busy ? "Please wait…" : mode === "up" ? "Create staff account" : "Sign in"}
               </Button>
             </form>
+            {mode === "in" ? (
+              <button
+                type="button"
+                className="mt-3 block text-sm text-primary hover:underline"
+                onClick={() => {
+                  setMode("forgot");
+                  setError(null);
+                  setResetSent(false);
+                }}
+              >
+                Forgot password?
+              </button>
+            ) : null}
             <button
               type="button"
               className="mt-3 text-sm text-primary hover:underline"
@@ -186,6 +295,7 @@ function Login() {
               </>
             ) : null}
           </>
+          )
         ) : (
           <p className="mt-6 text-sm text-muted">Sign-in is disabled.</p>
         )}

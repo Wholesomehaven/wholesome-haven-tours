@@ -1,2 +1,6 @@
 [variables]
 NIXPACKS_NODE_VERSION = "22"
+
+# Railway's default `npm ci` fails when lockfile has dual ajv versions.
+[phases.install]
+cmds = ["npm install"]

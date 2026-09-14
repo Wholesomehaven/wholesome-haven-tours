@@ -50,7 +50,7 @@ function calendarLinks(booking: MailBooking): string {
 }
 
 function socialBlock(): string {
-  const photo = "https://tours.wholesomehavensd.com/images/social-follow.png";
+  const photo = `${SITE.tourAppUrl}/images/social-follow.png`;
   return `
     <p style="margin:28px 0 10px;font-size:13px;color:#7a7568">Follow along at the house</p>
     <img src="${photo}" alt="Life at Wholesome Haven Senior Living" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;margin:0 0 12px" />
@@ -84,12 +84,14 @@ export async function notifyBookingCreated(booking: MailBooking) {
       <p style="margin:0 0 4px">${booking.guestName} · ${booking.guestEmail} · ${booking.guestPhone}</p>
       <p style="margin:0 0 4px">Party of ${booking.partySize}${booking.residentName ? ` · Resident: ${booking.residentName}` : ""}</p>
       ${booking.notes ? `<p style="margin:12px 0 0">${booking.notes}</p>` : ""}
-      <p style="margin:16px 0 0"><a href="${SITE.website.replace(/\/$/, "")}/book-admin" style="color:#5a7344">Open tour desk</a></p>
+      <p style="margin:16px 0 0">
+        <a href="${SITE.tourDeskUrl}" style="display:inline-block;background:#5a7344;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-size:16px">Open tour desk</a>
+      </p>
   `;
   await sendStaffMailSafe({
     to: SITE.adminEmail,
     subject: `New tour request: ${booking.guestName} — ${whenText}`,
-    text: `New tour request from ${booking.guestName} (${booking.guestEmail}, ${booking.guestPhone}) for ${whenText}. Party of ${booking.partySize}.`,
+    text: `New tour request from ${booking.guestName} (${booking.guestEmail}, ${booking.guestPhone}) for ${whenText}. Party of ${booking.partySize}. Open tour desk: ${SITE.tourDeskUrl}`,
     html: wrap("New tour request", adminLines),
   });
 }

@@ -12,6 +12,8 @@ export const SITE = {
   email: "admin@wholesomehavensd.com",
   emailHref: "mailto:admin@wholesomehavensd.com",
   website: "https://wholesomehavensd.com",
+  tourAppUrl: "https://tours.wholesomehavensd.com",
+  tourDeskUrl: "https://tours.wholesomehavensd.com/admin",
   instagramUrl: "https://www.instagram.com/wholesomehavenseniorliving/",
   facebookUrl: "https://www.facebook.com/WholesomeHavenSeniorLiving?mibextid=ZbWKwL",
   timezone: "America/Los_Angeles",

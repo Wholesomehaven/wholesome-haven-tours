@@ -10,6 +10,8 @@ type Mail = {
 };
 
 const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const GOOGLE_SCOPES = `${GMAIL_SEND_SCOPE} ${CALENDAR_SCOPE}`;
 
 const previewStore = globalThis as typeof globalThis & {
   __whResetPreview__?: { email: string; url: string; at: number };
@@ -53,9 +55,10 @@ export function googleAuthUrl(origin: string): string {
     client_id: clientId,
     redirect_uri: mailRedirectUri(origin),
     response_type: "code",
-    scope: GMAIL_SEND_SCOPE,
+    scope: GOOGLE_SCOPES,
     access_type: "offline",
     prompt: "consent",
+    include_granted_scopes: "true",
     login_hint: SITE.adminEmail,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -135,7 +138,7 @@ export async function exchangeGoogleAuthCode(code: string, origin: string) {
   return json;
 }
 
-async function gmailAccessToken(): Promise<string> {
+export async function googleAccessToken(): Promise<string> {
   const cached = previewStore.__whGmailAccess__;
   if (cached && cached.expiresAt > Date.now()) return cached.token;
 
@@ -184,7 +187,7 @@ function toBase64Url(raw: string): string {
 }
 
 async function sendViaGmail(mail: Mail, from: string): Promise<void> {
-  const token = await gmailAccessToken();
+  const token = await googleAccessToken();
   const boundary = `wh${Date.now()}`;
   const rfc822 = [
     `From: ${from}`,

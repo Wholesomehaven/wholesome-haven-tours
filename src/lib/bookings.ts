@@ -5,6 +5,7 @@ import { getSql } from "@/lib/db";
 import { GATE_SESSION_MARKER_COOKIE } from "@/lib/auth/gate-session-marker";
 import { SITE } from "./site";
 import { notifyBookingCreated, notifyBookingStatus } from "./tour-emails";
+import { syncStaffCalendarSafe } from "./staff-calendar.server";
 import {
   addDaysIso,
   facilityDateTime,
@@ -371,6 +372,7 @@ export const createBooking = createServerFn({ method: "POST" })
         tourTime: row.tour_time,
       };
       void notifyBookingCreated({ ...booking, tourMinutes: settings.tourMinutes });
+      void syncStaffCalendarSafe({ ...booking, tourMinutes: settings.tourMinutes, status: "pending" });
       return {
         ok: true as const,
         booking: {
@@ -511,14 +513,21 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
         where id = ${data.id}
       `;
     }
-    const [row] = await sql<Parameters<typeof mapBooking>[0]>`
+    const [row] = await sql<Parameters<typeof mapBooking>[0] & { google_event_id: string | null }>`
       select id, guest_name, guest_email, guest_phone, party_size, relationship,
              resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-             staff_notes, created_at
+             staff_notes, created_at, google_event_id
       from bookings where id = ${data.id}
     `;
     if (row) {
-      void notifyBookingStatus(mapBooking(row), data.status);
+      const mapped = mapBooking(row);
+      void notifyBookingStatus(mapped, data.status);
+      const settings = await loadSettings();
+      void syncStaffCalendarSafe({
+        ...mapped,
+        tourMinutes: settings.tourMinutes,
+        googleEventId: row.google_event_id,
+      });
     }
     return { ok: true as const };
   });

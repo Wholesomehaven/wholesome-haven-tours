@@ -21,8 +21,8 @@ export const Route = createFileRoute("/api/mail/google/callback")({
         try {
           await exchangeGoogleAuthCode(code, url.origin);
           return htmlPage(
-            "Gmail is connected",
-            `${SITE.shortName} can now email families and staff from ${SITE.adminEmail}. You can close this tab.`,
+            "Google is connected",
+            `${SITE.shortName} can now email families and add private tours to the ${SITE.adminEmail} Google Calendar. You can close this tab.`,
             true,
           );
         } catch (err) {

@@ -55,6 +55,13 @@ export function tourBounds(event: TourEvent) {
   };
 }
 
+export function tourLocalDateTimes(event: TourEvent) {
+  const { startLocal, endLocal } = tourBounds(event);
+  const toRfc = (stamp: string) =>
+    `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}`;
+  return { start: toRfc(startLocal), end: toRfc(endLocal) };
+}
+
 function details(event: TourEvent) {
   const who = event.guestName ? ` for ${event.guestName}` : "";
   return [

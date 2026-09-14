@@ -122,6 +122,12 @@ export function AdminDashboard() {
           variant="admin"
           trailing={
             <div className="flex min-w-0 items-center gap-2">
+              <a
+                href="/api/mail/google/connect"
+                className="hidden text-xs text-muted underline-offset-4 hover:text-fg hover:underline sm:inline"
+              >
+                Connect calendar
+              </a>
               <span className="hidden truncate text-xs text-muted sm:inline">{staff.email}</span>
               <UserButton />
             </div>

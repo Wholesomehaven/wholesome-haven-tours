@@ -50,15 +50,15 @@ function calendarLinks(booking: MailBooking): string {
 }
 
 function socialBlock(): string {
-  const photo = "https://tours.wholesomehavensd.com/images/family.webp";
+  const photo = "https://tours.wholesomehavensd.com/images/social-follow.png";
   return `
     <p style="margin:28px 0 10px;font-size:13px;color:#7a7568">Follow along at the house</p>
-    <img src="${photo}" alt="A meal together at Wholesome Haven" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;margin:0 0 12px" />
+    <img src="${photo}" alt="Life at Wholesome Haven Senior Living" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;margin:0 0 12px" />
     <p style="margin:0 0 12px;font-size:14px">See daily life, meals, and moments from ${SITE.shortName}.</p>
     <p style="margin:0">
-      <a href="${SITE.facebookUrl}" style="display:inline-block;background:#1877F2;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">Facebook</a>
+      <a href="${SITE.facebookUrl}" style="display:inline-block;background:#1877F2;color:#fff;padding:20px 28px;border-radius:8px;text-decoration:none;font-size:18px;line-height:1.2">Facebook</a>
       &nbsp;
-      <a href="${SITE.instagramUrl}" style="display:inline-block;background:#E4405F;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">Instagram</a>
+      <a href="${SITE.instagramUrl}" style="display:inline-block;background:#E4405F;color:#fff;padding:20px 28px;border-radius:8px;text-decoration:none;font-size:18px;line-height:1.2">Instagram</a>
     </p>`;
 }
 

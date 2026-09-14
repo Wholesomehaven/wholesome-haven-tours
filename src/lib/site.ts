@@ -13,7 +13,7 @@ export const SITE = {
   emailHref: "mailto:admin@wholesomehavensd.com",
   website: "https://wholesomehavensd.com",
   instagramUrl: "https://www.instagram.com/wholesomehavenseniorliving/",
-  facebookUrl: "https://www.facebook.com/WholesomeHavenSeniorLiving",
+  facebookUrl: "https://www.facebook.com/WholesomeHavenSeniorLiving?mibextid=ZbWKwL",
   timezone: "America/Los_Angeles",
   adminEmail: "admin@wholesomehavensd.com",
 } as const;

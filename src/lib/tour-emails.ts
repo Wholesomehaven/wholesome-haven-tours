@@ -41,11 +41,25 @@ function calendarEvent(booking: MailBooking) {
 
 function calendarLinks(booking: MailBooking): string {
   const event = calendarEvent(booking);
-  return `<p style="margin:16px 0 0">
-    <a href="${googleCalendarUrl(event)}" style="color:#5a7344">Add to Google Calendar</a>
-    &nbsp;·&nbsp;
-    <a href="${appleCalendarUrl(event)}" style="color:#5a7344">Add to iPhone / Apple Calendar</a>
-  </p>`;
+  return `<p style="margin:20px 0 8px;font-size:13px;color:#7a7568">Add this visit to your calendar</p>
+    <p style="margin:0 0 8px">
+      <a href="${googleCalendarUrl(event)}" style="display:inline-block;background:#5a7344;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">Google Calendar</a>
+      &nbsp;
+      <a href="${appleCalendarUrl(event)}" style="display:inline-block;background:#3d3a32;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">iPhone / Apple</a>
+    </p>`;
+}
+
+function socialBlock(): string {
+  const photo = "https://tours.wholesomehavensd.com/images/family.webp";
+  return `
+    <p style="margin:28px 0 10px;font-size:13px;color:#7a7568">Follow along at the house</p>
+    <img src="${photo}" alt="A meal together at Wholesome Haven" width="520" style="display:block;width:100%;max-width:520px;border-radius:12px;margin:0 0 12px" />
+    <p style="margin:0 0 12px;font-size:14px">See daily life, meals, and moments from ${SITE.shortName}.</p>
+    <p style="margin:0">
+      <a href="${SITE.facebookUrl}" style="display:inline-block;background:#1877F2;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">Facebook</a>
+      &nbsp;
+      <a href="${SITE.instagramUrl}" style="display:inline-block;background:#E4405F;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">Instagram</a>
+    </p>`;
 }
 
 export async function notifyBookingCreated(booking: MailBooking) {
@@ -55,11 +69,12 @@ export async function notifyBookingCreated(booking: MailBooking) {
       <p style="margin:0 0 12px"><strong>${whenText}</strong></p>
       <p style="margin:0 0 12px">Our team will review this and email you when it is confirmed. If you need to change anything, call ${SITE.phone}.</p>
       ${calendarLinks(booking)}
+      ${socialBlock()}
   `;
   await sendStaffMailSafe({
     to: booking.guestEmail,
     subject: `We received your tour request — ${SITE.shortName}`,
-    text: `Thank you, ${booking.guestName}. We received your private tour request for ${whenText}. We will email you when it is confirmed. Call ${SITE.phone} with questions.`,
+    text: `Thank you, ${booking.guestName}. We received your private tour request for ${whenText}. We will email you when it is confirmed. Call ${SITE.phone} with questions. Follow us: ${SITE.facebookUrl} ${SITE.instagramUrl}`,
     html: wrap("Tour request received", guestLines),
   });
 
@@ -88,13 +103,14 @@ export async function notifyBookingStatus(
     await sendStaffMailSafe({
       to: booking.guestEmail,
       subject: `Your tour is confirmed — ${SITE.shortName}`,
-      text: `Hi ${booking.guestName}, your private tour is confirmed for ${whenText}. ${SITE.address}. Call ${SITE.phone} if plans change.`,
+      text: `Hi ${booking.guestName}, your private tour is confirmed for ${whenText}. ${SITE.address}. Call ${SITE.phone} if plans change. Follow us: ${SITE.facebookUrl} ${SITE.instagramUrl}`,
       html: wrap(
         "Your tour is confirmed",
         `<p style="margin:0 0 12px">Hi ${booking.guestName}, we look forward to welcoming you.</p>
          <p style="margin:0 0 12px"><strong>${whenText}</strong></p>
          <p style="margin:0 0 12px">${SITE.address}</p>
          ${calendarLinks(booking)}
+         ${socialBlock()}
          <p style="margin:16px 0 0">Please call ${SITE.phone} if you need to reschedule.</p>`,
       ),
     });

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { SITE } from "@/lib/site";
+import { FacebookIcon, InstagramIcon } from "./social-icons";
 
 export function SiteFooter() {
   return (
@@ -32,6 +33,26 @@ export function SiteFooter() {
           <a href={SITE.emailHref} className="block hover:underline">
             {SITE.email}
           </a>
+          <div className="mt-4 flex gap-2">
+            <a
+              href={SITE.facebookUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex size-9 items-center justify-center rounded-md bg-primary-fg/10 text-primary-fg hover:bg-primary-fg/20"
+              aria-label="Facebook"
+            >
+              <FacebookIcon className="size-4" />
+            </a>
+            <a
+              href={SITE.instagramUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex size-9 items-center justify-center rounded-md bg-primary-fg/10 text-primary-fg hover:bg-primary-fg/20"
+              aria-label="Instagram"
+            >
+              <InstagramIcon className="size-4" />
+            </a>
+          </div>
           <Link
             to="/admin"
             className="mt-6 inline-block text-xs tracking-wide text-primary-fg/45 hover:text-primary-fg"

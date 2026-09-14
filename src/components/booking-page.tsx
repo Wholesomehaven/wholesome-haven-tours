@@ -19,6 +19,7 @@ import { appleCalendarHref, googleCalendarUrl } from "@/lib/calendar";
 import { formatLongDate, formatTime, todayInFacility } from "@/lib/time";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
+import { SocialFollow } from "./social-follow";
 import { BookingCalendar } from "./booking-calendar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -525,6 +526,9 @@ function Confirmation({ card, onReset }: { card: Confirmed; onReset: () => void 
       <p className="mt-3 text-xs text-muted">
         Google opens a Save screen. On iPhone, tap Add Event when Calendar opens.
       </p>
+      <div className="mt-8">
+        <SocialFollow />
+      </div>
       <p className="mt-6 text-xs text-muted">Requested {todayInFacility()} · Reference #{card.id}</p>
     </div>
   );

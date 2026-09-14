@@ -7,8 +7,8 @@ export const SITE = {
   address: "10034 View Crest Ct, Spring Valley, CA 91977",
   mapsUrl:
     "https://www.google.com/maps/search/?api=1&query=10034+View+Crest+Ct,+Spring+Valley,+CA+91977",
-  phone: "(619) 759-5747",
-  phoneHref: "tel:+16197595747",
+  phone: "(818) 749-6701",
+  phoneHref: "tel:+18187496701",
   email: "admin@wholesomehavensd.com",
   emailHref: "mailto:admin@wholesomehavensd.com",
   website: "https://wholesomehavensd.com",

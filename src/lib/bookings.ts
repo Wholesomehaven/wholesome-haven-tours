@@ -370,7 +370,7 @@ export const createBooking = createServerFn({ method: "POST" })
         tourDate: String(row.tour_date).slice(0, 10),
         tourTime: row.tour_time,
       };
-      void notifyBookingCreated(booking);
+      void notifyBookingCreated({ ...booking, tourMinutes: settings.tourMinutes });
       return {
         ok: true as const,
         booking: {

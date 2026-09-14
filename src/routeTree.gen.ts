@@ -15,6 +15,7 @@ import { Route as BookATourRouteImport } from './routes/book-a-tour'
 import { Route as BookAdminRouteImport } from './routes/book-admin'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ApiTourCalendarRouteImport } from './routes/api/tour-calendar'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMailGoogleCallbackRouteImport } from './routes/api/mail/google/callback'
 import { Route as ApiMailGoogleConnectRouteImport } from './routes/api/mail/google/connect'
@@ -49,6 +50,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTourCalendarRoute = ApiTourCalendarRouteImport.update({
+  id: '/api/tour-calendar',
+  path: '/api/tour-calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
   '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
   '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
   '/api/mail/google/connect': typeof ApiMailGoogleConnectRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
     | '/api/mail/google/connect'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
     | '/api/mail/google/connect'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
     | '/api/mail/google/connect'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   BookAdminRoute: typeof BookAdminRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiTourCalendarRoute: typeof ApiTourCalendarRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiMailGoogleCallbackRoute: typeof ApiMailGoogleCallbackRoute
   ApiMailGoogleConnectRoute: typeof ApiMailGoogleConnectRoute
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tour-calendar': {
+      id: '/api/tour-calendar'
+      path: '/api/tour-calendar'
+      fullPath: '/api/tour-calendar'
+      preLoaderRoute: typeof ApiTourCalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookAdminRoute: BookAdminRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiTourCalendarRoute: ApiTourCalendarRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiMailGoogleCallbackRoute: ApiMailGoogleCallbackRoute,
   ApiMailGoogleConnectRoute: ApiMailGoogleConnectRoute,

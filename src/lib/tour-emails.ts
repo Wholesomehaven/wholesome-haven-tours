@@ -1,4 +1,5 @@
 import { SITE } from "./site";
+import { appleCalendarUrl, googleCalendarUrl } from "./calendar";
 import { sendStaffMailSafe } from "./mail.server";
 import { formatLongDate, formatTime } from "./time";
 
@@ -11,6 +12,7 @@ type MailBooking = {
   notes: string | null;
   tourDate: string;
   tourTime: string;
+  tourMinutes?: number;
 };
 
 function wrap(title: string, body: string): string {
@@ -28,12 +30,31 @@ function when(booking: Pick<MailBooking, "tourDate" | "tourTime">): string {
   return `${formatLongDate(booking.tourDate)} at ${formatTime(booking.tourTime)}`;
 }
 
+function calendarEvent(booking: MailBooking) {
+  return {
+    tourDate: booking.tourDate,
+    tourTime: booking.tourTime,
+    tourMinutes: booking.tourMinutes ?? 45,
+    guestName: booking.guestName,
+  };
+}
+
+function calendarLinks(booking: MailBooking): string {
+  const event = calendarEvent(booking);
+  return `<p style="margin:16px 0 0">
+    <a href="${googleCalendarUrl(event)}" style="color:#5a7344">Add to Google Calendar</a>
+    &nbsp;·&nbsp;
+    <a href="${appleCalendarUrl(event)}" style="color:#5a7344">Add to iPhone / Apple Calendar</a>
+  </p>`;
+}
+
 export async function notifyBookingCreated(booking: MailBooking) {
   const whenText = when(booking);
   const guestLines = `
       <p style="margin:0 0 12px">Thank you, ${booking.guestName}. We received your private tour request.</p>
       <p style="margin:0 0 12px"><strong>${whenText}</strong></p>
       <p style="margin:0 0 12px">Our team will review this and email you when it is confirmed. If you need to change anything, call ${SITE.phone}.</p>
+      ${calendarLinks(booking)}
   `;
   await sendStaffMailSafe({
     to: booking.guestEmail,
@@ -73,7 +94,8 @@ export async function notifyBookingStatus(
         `<p style="margin:0 0 12px">Hi ${booking.guestName}, we look forward to welcoming you.</p>
          <p style="margin:0 0 12px"><strong>${whenText}</strong></p>
          <p style="margin:0 0 12px">${SITE.address}</p>
-         <p style="margin:0">Please call ${SITE.phone} if you need to reschedule.</p>`,
+         ${calendarLinks(booking)}
+         <p style="margin:16px 0 0">Please call ${SITE.phone} if you need to reschedule.</p>`,
       ),
     });
     return;

@@ -3,7 +3,6 @@ import {
   CalendarDays,
   Check,
   Clock,
-  Download,
   Leaf,
   MapPin,
   Phone,
@@ -16,6 +15,7 @@ import {
   getSlotsForDate,
 } from "@/lib/bookings";
 import { RELATIONSHIPS, SITE } from "@/lib/site";
+import { appleCalendarHref, googleCalendarUrl } from "@/lib/calendar";
 import { formatLongDate, formatTime, todayInFacility } from "@/lib/time";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -51,37 +51,6 @@ const HIGHLIGHTS = [
     copy: "A six-bed home on a quiet Spring Valley court.",
   },
 ];
-
-function icsContent(c: Confirmed): string {
-  const start = c.tourTime.replace(":", "");
-  const [h, m] = c.tourTime.split(":").map(Number);
-  const endMin = h * 60 + m + c.tourMinutes;
-  const eh = String(Math.floor(endMin / 60)).padStart(2, "0");
-  const em = String(endMin % 60).padStart(2, "0");
-  const day = c.tourDate.replace(/-/g, "");
-  return [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Wholesome Haven//Private Tour//EN",
-    "BEGIN:VEVENT",
-    `DTSTART;TZID=America/Los_Angeles:${day}T${start}00`,
-    `DTEND;TZID=America/Los_Angeles:${day}T${eh}${em}00`,
-    "SUMMARY:Private tour — Wholesome Haven Senior Living",
-    `LOCATION:${SITE.address}`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-}
-
-function downloadIcs(c: Confirmed) {
-  const blob = new Blob([icsContent(c)], { type: "text/calendar" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "wholesome-haven-tour.ics";
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 export function BookingPage() {
   const initial = todayInFacility();
@@ -531,10 +500,18 @@ function Confirmation({ card, onReset }: { card: Confirmed; onReset: () => void 
           <dd className="text-right">{SITE.address}</dd>
         </div>
       </dl>
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <Button type="button" onClick={() => downloadIcs(card)}>
-          <Download className="size-4" />
-          Add to calendar
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button type="button" asChild>
+          <a href={googleCalendarUrl(card)} target="_blank" rel="noreferrer">
+            <CalendarDays className="size-4" />
+            Google Calendar
+          </a>
+        </Button>
+        <Button type="button" variant="secondary" asChild>
+          <a href={appleCalendarHref(card)}>
+            <CalendarDays className="size-4" />
+            iPhone / Apple
+          </a>
         </Button>
         <Button type="button" variant="secondary" asChild>
           <a href={SITE.mapsUrl} target="_blank" rel="noreferrer">
@@ -545,6 +522,9 @@ function Confirmation({ card, onReset }: { card: Confirmed; onReset: () => void 
           Book another
         </Button>
       </div>
+      <p className="mt-3 text-xs text-muted">
+        Google opens a Save screen. On iPhone, tap Add Event when Calendar opens.
+      </p>
       <p className="mt-6 text-xs text-muted">Requested {todayInFacility()} · Reference #{card.id}</p>
     </div>
   );

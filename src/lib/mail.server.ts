@@ -44,11 +44,12 @@ export function googleMailClientSecret(): string | undefined {
   return env("GOOGLE_MAIL_CLIENT_SECRET");
 }
 
-export function mailRedirectUri(origin: string): string {
-  return `${origin.replace(/\/+$/, "")}/api/mail/google/callback`;
+export function mailRedirectUri(origin?: string): string {
+  const base = (origin || SITE.tourAppUrl).replace(/\/+$/, "");
+  return `${base}/api/mail/google/callback`;
 }
 
-export function googleAuthUrl(origin: string): string {
+export function googleAuthUrl(origin?: string): string {
   const clientId = googleMailClientId();
   if (!clientId) throw new Error("GOOGLE_MAIL_CLIENT_ID is not set.");
   const params = new URLSearchParams({
@@ -98,7 +99,7 @@ export async function saveGmailRefreshToken(refreshToken: string, mailbox?: stri
   `;
 }
 
-export async function exchangeGoogleAuthCode(code: string, origin: string) {
+export async function exchangeGoogleAuthCode(code: string, origin?: string) {
   const clientId = googleMailClientId();
   const clientSecret = googleMailClientSecret();
   if (!clientId || !clientSecret) {

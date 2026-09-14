@@ -10,8 +10,7 @@ export const Route = createFileRoute("/api/mail/google/connect")({
             status: 503,
           });
         }
-        const origin = new URL(request.url).origin;
-        return Response.redirect(googleAuthUrl(origin), 302);
+        return Response.redirect(googleAuthUrl(), 302);
       },
     },
   },

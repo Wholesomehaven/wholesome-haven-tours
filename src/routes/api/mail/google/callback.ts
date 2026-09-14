@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/mail/google/callback")({
           );
         }
         try {
-          await exchangeGoogleAuthCode(code, url.origin);
+          await exchangeGoogleAuthCode(code);
           return htmlPage(
             "Google is connected",
             `${SITE.shortName} can now email families and add private tours to the ${SITE.adminEmail} Google Calendar. You can close this tab.`,

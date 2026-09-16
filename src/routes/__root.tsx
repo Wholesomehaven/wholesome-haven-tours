@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
+import { PwaRegister } from "@/components/pwa-register";
 import { SITE } from "@/lib/site";
 import appCss from "../styles.css?url";
 
@@ -18,14 +19,17 @@ export const Route = createRootRoute({
           "Book a private tour of Wholesome Haven Senior Living in Spring Valley, CA. See our six-bed home, garden, and care team.",
       },
       { name: "theme-color", content: THEME },
+      { name: "apple-mobile-web-app-title", content: "Tours" },
+      { name: "mobile-web-app-capable", content: "yes" },
     ],
     links: [
       { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
       { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16.png" },
       { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },
-      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
-      { rel: "stylesheet", href: appCss },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/manifest.json" },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
+      { rel: "stylesheet", href: appCss },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Marcellus&display=swap",
@@ -39,6 +43,7 @@ export const Route = createRootRoute({
       </head>
       <body className="bg-bg text-fg">
         <PreviewHostBridge />
+        <PwaRegister />
         <AuthProvider>
           <Outlet />
         </AuthProvider>

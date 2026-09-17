@@ -3,11 +3,14 @@ import { Link } from "@tanstack/react-router";
 import { CalendarDays, Clock, Mail, Phone, Users } from "lucide-react";
 import {
   blockSlot,
+  closeSpecialSlot,
   getAdminSettings,
   getDashboard,
   getStaffSession,
   listBlocks,
   listBookings,
+  listOpenSlots,
+  openSpecialSlot,
   saveAdminSettings,
   saveStaffNotes,
   unblockSlot,
@@ -563,9 +566,15 @@ function AvailabilityPanel() {
   const [blocks, setBlocks] = useState<
     { id: number; slot_date: string; slot_time: string | null; reason: string | null }[]
   >([]);
+  const [openHours, setOpenHours] = useState<
+    { id: number; slot_date: string; slot_time: string; reason: string | null }[]
+  >([]);
   const [blockDate, setBlockDate] = useState("");
   const [blockTime, setBlockTime] = useState("");
   const [blockReason, setBlockReason] = useState("");
+  const [openDate, setOpenDate] = useState("");
+  const [openTime, setOpenTime] = useState("");
+  const [openNote, setOpenNote] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -579,6 +588,9 @@ function AvailabilityPanel() {
     listBlocks({ data: { from: today, to: horizon } })
       .then(setBlocks)
       .catch(() => setBlocks([]));
+    listOpenSlots({ data: { from: today, to: horizon } })
+      .then(setOpenHours)
+      .catch(() => setOpenHours([]));
   }
 
   useEffect(() => {
@@ -645,6 +657,31 @@ function AvailabilityPanel() {
       reload();
     } catch (err) {
       setError(errorMessage(err, "Could not block that date."));
+    }
+  }
+
+  async function addOpenHour() {
+    if (!openDate || !openTime.trim()) return;
+    const time = parseClockTime(openTime);
+    if (!time) {
+      setError("Use a time like 4:30 PM.");
+      return;
+    }
+    try {
+      await openSpecialSlot({
+        data: {
+          date: openDate,
+          time,
+          reason: openNote || undefined,
+        },
+      });
+      setOpenDate("");
+      setOpenTime("");
+      setOpenNote("");
+      setError(null);
+      reload();
+    } catch (err) {
+      setError(errorMessage(err, "Could not open that hour."));
     }
   }
 
@@ -757,6 +794,68 @@ function AvailabilityPanel() {
         </Button>
       </section>
 
+      <div className="grid gap-8">
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <h2 className="font-display text-2xl">Open a special hour</h2>
+        <p className="mt-1 text-sm text-muted">
+          Add one tour time outside the weekly schedule — any date, any clock time.
+          Families will see it on the booking page.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Field label="Date" htmlFor="odate">
+            <Input id="odate" type="date" value={openDate} onChange={(e) => setOpenDate(e.target.value)} />
+          </Field>
+          <Field label="Time" htmlFor="otime">
+            <Input
+              id="otime"
+              type="time"
+              value={openTime}
+              onChange={(e) => setOpenTime(e.target.value)}
+            />
+          </Field>
+        </div>
+        <Field label="Note (optional)" htmlFor="onote">
+          <Input id="onote" value={openNote} onChange={(e) => setOpenNote(e.target.value)} className="mt-3" />
+        </Field>
+        <Button
+          type="button"
+          className="mt-4"
+          onClick={addOpenHour}
+          disabled={!openDate || !openTime.trim()}
+        >
+          Open this hour
+        </Button>
+        <ul className="mt-6 space-y-2">
+          {openHours.length === 0 ? (
+            <li className="text-sm text-muted">No special hours opened ahead.</li>
+          ) : (
+            openHours.map((slot) => (
+              <li
+                key={slot.id}
+                className="flex items-center justify-between gap-3 rounded-md bg-bg px-3 py-2 text-sm"
+              >
+                <span>
+                  {formatShortDate(String(slot.slot_date).slice(0, 10))}
+                  {` · ${formatTime(slot.slot_time)}`}
+                  {slot.reason ? ` — ${slot.reason}` : ""}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    await closeSpecialSlot({ data: { id: slot.id } });
+                    reload();
+                  }}
+                >
+                  Remove
+                </Button>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
       <section className="rounded-xl border border-border bg-surface p-5">
         <h2 className="font-display text-2xl">Block dates</h2>
         <p className="mt-1 text-sm text-muted">
@@ -811,6 +910,7 @@ function AvailabilityPanel() {
           )}
         </ul>
       </section>
+      </div>
     </div>
   );
 }

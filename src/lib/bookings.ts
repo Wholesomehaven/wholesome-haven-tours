@@ -137,6 +137,39 @@ function slotIsInFuture(date: string, time: string, leadHours: number): boolean 
   return start.getTime() - Date.now() >= leadHours * 60 * 60 * 1000;
 }
 
+async function loadOpenTimes(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  start: string,
+  end: string,
+): Promise<Map<string, string[]>> {
+  const rows = await sql<{ slot_date: string; slot_time: string }>`
+    select slot_date, slot_time from open_slots
+    where slot_date >= ${start} and slot_date <= ${end}
+  `;
+  const map = new Map<string, string[]>();
+  for (const row of rows) {
+    const date = String(row.slot_date).slice(0, 10);
+    const list = map.get(date) ?? [];
+    list.push(row.slot_time);
+    map.set(date, list);
+  }
+  return map;
+}
+
+async function loadOpenTimesForDate(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  date: string,
+): Promise<string[]> {
+  const rows = await sql<{ slot_time: string }>`
+    select slot_time from open_slots where slot_date = ${date}
+  `;
+  return rows.map((r) => r.slot_time);
+}
+
+function mergeSlotTimes(weekly: string[], extra: string[]): string[] {
+  return [...new Set([...weekly, ...extra])].sort();
+}
+
 async function hasGateCookie(): Promise<boolean> {
   try {
     const { getRequest } = await import("@tanstack/react-start/server");
@@ -184,3 +217,549 @@ export const getPublicConfig = createServerFn({ method: "GET" }).handler(
     };
   },
 );
+
+export const getMonthAvailability = createServerFn({ method: "GET" })
+  .validator(
+    z.object({
+      year: z.number().int().min(2020).max(2100),
+      month: z.number().int().min(1).max(12),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const settings = await loadSettings();
+    const sql = await getSql();
+    const start = isoFromParts(data.year, data.month, 1);
+    const endDay = new Date(Date.UTC(data.year, data.month, 0)).getUTCDate();
+    const end = isoFromParts(data.year, data.month, endDay);
+    const today = todayInFacility();
+    const last = addDaysIso(today, settings.horizonDays);
+
+    const booked = await sql<{ tour_date: string; tour_time: string }>`
+      select tour_date, tour_time from bookings
+      where tour_date >= ${start} and tour_date <= ${end}
+        and status <> 'cancelled'
+    `;
+    const blocked = await sql<{ slot_date: string; slot_time: string | null }>`
+      select slot_date, slot_time from blocked_slots
+      where slot_date >= ${start} and slot_date <= ${end}
+    `;
+    const extraByDate = await loadOpenTimes(sql, start, end);
+
+    const bookedSet = new Set(
+      booked.map((b) => `${String(b.tour_date).slice(0, 10)}|${b.tour_time}`),
+    );
+    const blockedDay = new Set<string>();
+    const blockedSlot = new Set<string>();
+    for (const b of blocked) {
+      const d = String(b.slot_date).slice(0, 10);
+      if (b.slot_time) blockedSlot.add(`${d}|${b.slot_time}`);
+      else blockedDay.add(d);
+    }
+
+    const days: { date: string; open: number }[] = [];
+    for (let day = 1; day <= endDay; day++) {
+      const date = isoFromParts(data.year, data.month, day);
+      const extras = extraByDate.get(date) ?? [];
+      if (date < today) {
+        days.push({ date, open: 0 });
+        continue;
+      }
+      if (date > last && extras.length === 0) {
+        days.push({ date, open: 0 });
+        continue;
+      }
+      const weekly =
+        date <= last && settings.daysOfWeek.includes(weekdayOfIso(date))
+          ? settings.slotTimes
+          : [];
+      const times = mergeSlotTimes(weekly, extras);
+      if (times.length === 0 || blockedDay.has(date)) {
+        days.push({ date, open: 0 });
+        continue;
+      }
+      let open = 0;
+      for (const t of times) {
+        if (blockedSlot.has(`${date}|${t}`)) continue;
+        if (bookedSet.has(`${date}|${t}`)) continue;
+        const lead = extras.includes(t) && !weekly.includes(t) ? 0 : settings.leadHours;
+        if (!slotIsInFuture(date, t, lead)) continue;
+        open += 1;
+      }
+      days.push({ date, open });
+    }
+    return { days, settings };
+  });
+
+export const getSlotsForDate = createServerFn({ method: "GET" })
+  .validator(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
+  .handler(async ({ data }) => {
+    const settings = await loadSettings();
+    const sql = await getSql();
+    const date = data.date;
+    const today = todayInFacility();
+    const last = addDaysIso(today, settings.horizonDays);
+    const extras = await loadOpenTimesForDate(sql, date);
+    if (date < today) {
+      return { slots: [] as { time: string; open: boolean }[], tourMinutes: settings.tourMinutes };
+    }
+    const weekly =
+      date <= last && settings.daysOfWeek.includes(weekdayOfIso(date))
+        ? settings.slotTimes
+        : [];
+    const times = mergeSlotTimes(weekly, extras);
+    if (times.length === 0) {
+      return { slots: [] as { time: string; open: boolean }[], tourMinutes: settings.tourMinutes };
+    }
+
+    const booked = await sql<{ tour_time: string }>`
+      select tour_time from bookings
+      where tour_date = ${date} and status <> 'cancelled'
+    `;
+    const blocked = await sql<{ slot_time: string | null }>`
+      select slot_time from blocked_slots where slot_date = ${date}
+    `;
+    const bookedSet = new Set(booked.map((b) => b.tour_time));
+    const dayBlocked = blocked.some((b) => !b.slot_time);
+    const blockedSet = new Set(
+      blocked.filter((b) => b.slot_time).map((b) => b.slot_time as string),
+    );
+
+    const slots = times.map((time) => {
+      const specialOnly = extras.includes(time) && !weekly.includes(time);
+      const lead = specialOnly ? 0 : settings.leadHours;
+      return {
+        time,
+        open:
+          !dayBlocked &&
+          !blockedSet.has(time) &&
+          !bookedSet.has(time) &&
+          slotIsInFuture(date, time, lead),
+      };
+    });
+    return { slots, tourMinutes: settings.tourMinutes };
+  });
+
+const bookingInput = z.object({
+  guestName: z.string().trim().min(2).max(120),
+  guestEmail: z.email(),
+  guestPhone: z.string().trim().min(10).max(40),
+  partySize: z.number().int().min(1).max(12),
+  relationship: z.string().trim().max(40).optional(),
+  residentName: z.string().trim().max(120).optional(),
+  notes: z.string().trim().max(1000).optional(),
+  smsOptIn: z.boolean(),
+  tourDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  tourTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export const createBooking = createServerFn({ method: "POST" })
+  .validator(bookingInput)
+  .handler(async ({ data }) => {
+    const settings = await loadSettings();
+    const phoneDigits = digitsOnly(data.guestPhone);
+    if (phoneDigits.length < 10) {
+      return { ok: false as const, error: "Please enter a valid phone number." };
+    }
+    if (data.partySize > settings.maxPartySize) {
+      return {
+        ok: false as const,
+        error: `Tours are limited to ${settings.maxPartySize} guests.`,
+      };
+    }
+    const today = todayInFacility();
+    const last = addDaysIso(today, settings.horizonDays);
+    if (data.tourDate < today) {
+      return { ok: false as const, error: "That date is outside our booking window." };
+    }
+    const sql = await getSql();
+    const extras = await loadOpenTimesForDate(sql, data.tourDate);
+    const specialOnly =
+      extras.includes(data.tourTime) && !settings.slotTimes.includes(data.tourTime);
+    const onWeeklyDay = settings.daysOfWeek.includes(weekdayOfIso(data.tourDate));
+    const weeklyOpen =
+      data.tourDate <= last && onWeeklyDay && settings.slotTimes.includes(data.tourTime);
+    if (!weeklyOpen && !extras.includes(data.tourTime)) {
+      if (data.tourDate > last || !onWeeklyDay) {
+        return { ok: false as const, error: "We do not host tours on that day." };
+      }
+      return { ok: false as const, error: "Please choose one of the listed times." };
+    }
+    const lead = specialOnly ? 0 : settings.leadHours;
+    if (!slotIsInFuture(data.tourDate, data.tourTime, lead)) {
+      return { ok: false as const, error: "That time is no longer available." };
+    }
+
+    const blocked = await sql<{ slot_time: string | null }>`
+      select slot_time from blocked_slots where slot_date = ${data.tourDate}
+    `;
+    if (blocked.some((b) => !b.slot_time || b.slot_time === data.tourTime)) {
+      return { ok: false as const, error: "That time was just taken. Please pick another." };
+    }
+
+    try {
+      const rows = await sql<{ id: number; tour_date: string; tour_time: string }>`
+        insert into bookings (
+          guest_name, guest_email, guest_phone, party_size, relationship,
+          resident_name, notes, sms_opt_in, tour_date, tour_time, status
+        ) values (
+          ${data.guestName},
+          ${data.guestEmail.toLowerCase()},
+          ${data.guestPhone.trim()},
+          ${data.partySize},
+          ${data.relationship || null},
+          ${data.residentName || null},
+          ${data.notes || null},
+          ${data.smsOptIn},
+          ${data.tourDate},
+          ${data.tourTime},
+          'pending'
+        )
+        returning id, tour_date, tour_time
+      `;
+      const row = rows[0];
+      if (!row) return { ok: false as const, error: "Could not save your request." };
+      const booking = {
+        id: row.id,
+        guestName: data.guestName,
+        guestEmail: data.guestEmail.toLowerCase(),
+        guestPhone: data.guestPhone.trim(),
+        partySize: data.partySize,
+        residentName: data.residentName || null,
+        notes: data.notes || null,
+        tourDate: String(row.tour_date).slice(0, 10),
+        tourTime: row.tour_time,
+      };
+      void notifyBookingCreated({ ...booking, tourMinutes: settings.tourMinutes });
+      void syncStaffCalendarSafe({ ...booking, tourMinutes: settings.tourMinutes, status: "pending" });
+      return {
+        ok: true as const,
+        booking: {
+          id: row.id,
+          tourDate: booking.tourDate,
+          tourTime: booking.tourTime,
+          guestName: data.guestName,
+          tourMinutes: settings.tourMinutes,
+        },
+      };
+    } catch {
+      return {
+        ok: false as const,
+        error: "That time was just taken. Please pick another.",
+      };
+    }
+  });
+
+export const getStaffSession = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => staffContext(context.userId));
+
+export const listBookings = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      status: z.string().optional(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    const from = data.from || "2000-01-01";
+    const to = data.to || "2100-12-31";
+    const status = data.status && data.status !== "all" ? data.status : null;
+    const rows = status
+      ? await sql<Parameters<typeof mapBooking>[0]>`
+          select id, guest_name, guest_email, guest_phone, party_size, relationship,
+                 resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+                 staff_notes, created_at
+          from bookings
+          where tour_date >= ${from} and tour_date <= ${to} and status = ${status}
+          order by case when status = 'pending' then 0 when status = 'confirmed' then 1 else 2 end,
+                   tour_date asc, tour_time asc
+        `
+      : await sql<Parameters<typeof mapBooking>[0]>`
+          select id, guest_name, guest_email, guest_phone, party_size, relationship,
+                 resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+                 staff_notes, created_at
+          from bookings
+          where tour_date >= ${from} and tour_date <= ${to}
+          order by case when status = 'pending' then 0 when status = 'confirmed' then 1 else 2 end,
+                   tour_date asc, tour_time asc
+        `;
+    return rows.map(mapBooking);
+  });
+
+export const getDashboard = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    const today = todayInFacility();
+    const weekEnd = addDaysIso(today, 7);
+    const counts = await sql<{ status: string; n: number }>`
+      select status, count(*)::int as n from bookings group by status
+    `;
+    const byStatus: Record<string, number> = {};
+    for (const c of counts) byStatus[c.status] = c.n;
+    const todayRows = await sql<Parameters<typeof mapBooking>[0]>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, created_at
+      from bookings
+      where tour_date = ${today} and status <> 'cancelled'
+      order by tour_time asc
+    `;
+    const upcoming = await sql<{ n: number }>`
+      select count(*)::int as n from bookings
+      where tour_date >= ${today} and tour_date < ${weekEnd}
+        and status in ('pending', 'confirmed')
+    `;
+    const pending = await sql<{ n: number }>`
+      select count(*)::int as n from bookings where status = 'pending'
+    `;
+    const pendingRows = await sql<Parameters<typeof mapBooking>[0]>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, created_at
+      from bookings
+      where status = 'pending'
+      order by tour_date asc, tour_time asc
+    `;
+    const upcomingRows = await sql<Parameters<typeof mapBooking>[0]>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, created_at
+      from bookings
+      where tour_date >= ${today} and tour_date <= ${weekEnd}
+        and status in ('pending', 'confirmed')
+      order by tour_date asc, tour_time asc
+    `;
+    return {
+      byStatus,
+      todayCount: todayRows.length,
+      upcomingWeek: upcoming[0]?.n ?? 0,
+      pending: pending[0]?.n ?? 0,
+      todayTours: todayRows.map(mapBooking),
+      pendingTours: pendingRows.map(mapBooking),
+      upcomingTours: upcomingRows.map(mapBooking),
+    };
+  });
+
+export const updateBookingStatus = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      id: z.number().int(),
+      status: z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]),
+      staffNotes: z.string().trim().max(2000).optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    if (data.staffNotes !== undefined) {
+      await sql`
+        update bookings
+        set status = ${data.status}, staff_notes = ${data.staffNotes}, updated_at = now()
+        where id = ${data.id}
+      `;
+    } else {
+      await sql`
+        update bookings
+        set status = ${data.status}, updated_at = now()
+        where id = ${data.id}
+      `;
+    }
+    const [row] = await sql<Parameters<typeof mapBooking>[0] & { google_event_id: string | null }>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, created_at, google_event_id
+      from bookings where id = ${data.id}
+    `;
+    if (row) {
+      const mapped = mapBooking(row);
+      void notifyBookingStatus(mapped, data.status);
+      const settings = await loadSettings();
+      void syncStaffCalendarSafe({
+        ...mapped,
+        tourMinutes: settings.tourMinutes,
+        googleEventId: row.google_event_id,
+      });
+    }
+    return { ok: true as const };
+  });
+
+export const saveStaffNotes = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.number().int(), staffNotes: z.string().trim().max(2000) }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    await sql`
+      update bookings set staff_notes = ${data.staffNotes}, updated_at = now()
+      where id = ${data.id}
+    `;
+    return { ok: true as const };
+  });
+
+export const listBlocks = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ from: z.string(), to: z.string() }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    return sql<{ id: number; slot_date: string; slot_time: string | null; reason: string | null }>`
+      select id, slot_date, slot_time, reason from blocked_slots
+      where slot_date >= ${data.from} and slot_date <= ${data.to}
+      order by slot_date asc, slot_time asc nulls first
+    `;
+  });
+
+export const blockSlot = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z
+        .string()
+        .optional()
+        .nullable()
+        .transform((v) => {
+          if (!v) return null;
+          return parseClockTime(v);
+        })
+        .refine((v) => v === null || Boolean(v), "Use a time like 9:00 or 2:00 PM."),
+      reason: z.string().trim().max(200).optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    await sql`
+      insert into blocked_slots (slot_date, slot_time, reason)
+      values (${data.date}, ${data.time ?? null}, ${data.reason || null})
+    `;
+    return { ok: true as const };
+  });
+
+export const unblockSlot = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.number().int() }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    await sql`delete from blocked_slots where id = ${data.id}`;
+    return { ok: true as const };
+  });
+
+export const getAdminSettings = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.userId);
+    return loadSettings();
+  });
+
+export const saveAdminSettings = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      daysOfWeek: z.array(z.coerce.number().int().min(0).max(6)).min(1, "Pick at least one open day."),
+      slotTimes: z
+        .array(z.string())
+        .min(1, "Pick at least one tour time.")
+        .transform((arr, ctx) => {
+          const out: string[] = [];
+          for (const raw of arr) {
+            const t = parseClockTime(raw);
+            if (!t) {
+              ctx.addIssue({
+                code: "custom",
+                message: `“${raw}” isn’t a valid time. Try 9:00 or 9:00 AM.`,
+              });
+              return z.NEVER;
+            }
+            out.push(t);
+          }
+          return [...new Set(out)].sort();
+        }),
+      tourMinutes: z.coerce.number().int().min(15).max(180),
+      maxPartySize: z.coerce.number().int().min(1).max(12),
+      leadHours: z.coerce.number().int().min(0).max(72),
+      horizonDays: z.coerce.number().int().min(7).max(365),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    const days = [...new Set(data.daysOfWeek)].sort((a, b) => a - b).join(",");
+    const slots = JSON.stringify(data.slotTimes);
+    await sql`
+      update availability_settings
+      set days_of_week = ${days},
+          slot_times = ${slots},
+          tour_minutes = ${data.tourMinutes},
+          max_party_size = ${data.maxPartySize},
+          lead_hours = ${data.leadHours},
+          horizon_days = ${data.horizonDays}
+      where id = 1
+    `;
+    return { ok: true as const };
+  });
+
+export const listOpenSlots = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ from: z.string(), to: z.string() }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    return sql<{ id: number; slot_date: string; slot_time: string; reason: string | null }>`
+      select id, slot_date, slot_time, reason from open_slots
+      where slot_date >= ${data.from} and slot_date <= ${data.to}
+      order by slot_date asc, slot_time asc
+    `;
+  });
+
+export const openSpecialSlot = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z
+        .string()
+        .trim()
+        .min(1, "Pick a time.")
+        .transform((v, ctx) => {
+          const t = parseClockTime(v);
+          if (!t) {
+            ctx.addIssue({ code: "custom", message: "Use a time like 4:30 PM." });
+            return z.NEVER;
+          }
+          return t;
+        }),
+      reason: z.string().trim().max(200).optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    if (!slotIsInFuture(data.date, data.time, 0)) {
+      throw new Error("That time is already in the past.");
+    }
+    const sql = await getSql();
+    await sql`
+      insert into open_slots (slot_date, slot_time, reason)
+      values (${data.date}, ${data.time}, ${data.reason || null})
+      on conflict (slot_date, slot_time) do update set reason = excluded.reason
+    `;
+    return { ok: true as const };
+  });
+
+export const closeSpecialSlot = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.number().int() }))
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    await sql`delete from open_slots where id = ${data.id}`;
+    return { ok: true as const };
+  });

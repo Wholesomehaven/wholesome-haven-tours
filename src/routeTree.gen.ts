@@ -15,6 +15,7 @@ import { Route as BookATourRouteImport } from './routes/book-a-tour'
 import { Route as BookAdminRouteImport } from './routes/book-admin'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ApiStaffLoginRouteImport } from './routes/api/staff-login'
 import { Route as ApiTourCalendarRouteImport } from './routes/api/tour-calendar'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMailGoogleCallbackRouteImport } from './routes/api/mail/google/callback'
@@ -50,6 +51,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStaffLoginRoute = ApiStaffLoginRouteImport.update({
+  id: '/api/staff-login',
+  path: '/api/staff-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTourCalendarRoute = ApiTourCalendarRouteImport.update({
   id: '/api/tour-calendar',
   path: '/api/tour-calendar',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/staff-login': typeof ApiStaffLoginRoute
   '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/staff-login': typeof ApiStaffLoginRoute
   '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/book-admin': typeof BookAdminRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/api/staff-login': typeof ApiStaffLoginRoute
   '/api/tour-calendar': typeof ApiTourCalendarRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mail/google/callback': typeof ApiMailGoogleCallbackRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/staff-login'
     | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
@@ -129,6 +139,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/staff-login'
     | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/book-admin'
     | '/login'
     | '/reset-password'
+    | '/api/staff-login'
     | '/api/tour-calendar'
     | '/api/auth/$'
     | '/api/mail/google/callback'
@@ -154,6 +166,7 @@ export interface RootRouteChildren {
   BookAdminRoute: typeof BookAdminRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiStaffLoginRoute: typeof ApiStaffLoginRoute
   ApiTourCalendarRoute: typeof ApiTourCalendarRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiMailGoogleCallbackRoute: typeof ApiMailGoogleCallbackRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/staff-login': {
+      id: '/api/staff-login'
+      path: '/api/staff-login'
+      fullPath: '/api/staff-login'
+      preLoaderRoute: typeof ApiStaffLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tour-calendar': {
       id: '/api/tour-calendar'
       path: '/api/tour-calendar'
@@ -242,6 +262,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookAdminRoute: BookAdminRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiStaffLoginRoute: ApiStaffLoginRoute,
   ApiTourCalendarRoute: ApiTourCalendarRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiMailGoogleCallbackRoute: ApiMailGoogleCallbackRoute,

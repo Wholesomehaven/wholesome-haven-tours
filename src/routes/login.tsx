@@ -79,8 +79,35 @@ function Login() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (mode !== "up" && !email.includes("@")) {
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters.");
+        return;
+      }
+      setBusy(true);
+      try {
+        const response = await fetch("/api/staff-login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ username: email.trim(), password }),
+        });
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        if (!response.ok) {
+          setError(payload?.message ?? "Could not sign in.");
+          return;
+        }
+        captureBearerFromResponse(response.headers);
+        window.location.href = CALLBACK;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Sign-in failed.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (email.trim().toLowerCase() !== SITE.adminEmail) {
-      setError(`Staff accounts must use ${SITE.adminEmail}.`);
+      setError(`Owner accounts must use ${SITE.adminEmail}. Staff can sign in with their username.`);
       return;
     }
     if (password.length < 8) {
@@ -154,7 +181,7 @@ function Login() {
         <p className="mt-2 text-sm text-muted">
           {mode === "forgot"
             ? `We’ll email a reset link to ${SITE.adminEmail}.`
-            : `Sign in with ${SITE.adminEmail} to review private tour requests.`}
+            : `Sign in with ${SITE.adminEmail}, or with the staff username, to review private tour requests.`}
         </p>
 
         {authEnabled ? (
@@ -224,10 +251,10 @@ function Login() {
                 </div>
               ) : null}
               <div className="grid gap-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{mode === "in" ? "Email or username" : "Email"}</Label>
                 <Input
                   id="email"
-                  type="email"
+                  type={mode === "in" ? "text" : "email"}
                   autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

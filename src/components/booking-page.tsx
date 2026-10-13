@@ -13,6 +13,7 @@ import {
   getMonthAvailability,
   getPublicConfig,
   getSlotsForDate,
+  peekTourStaff,
 } from "@/lib/bookings";
 import { RELATIONSHIPS, SITE } from "@/lib/site";
 import { appleCalendarHref, googleCalendarUrl } from "@/lib/calendar";
@@ -77,6 +78,8 @@ export function BookingPage() {
   const [residentName, setResidentName] = useState("");
   const [notes, setNotes] = useState("");
   const [smsOptIn, setSmsOptIn] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
 
   useEffect(() => {
     getPublicConfig()
@@ -85,6 +88,9 @@ export function BookingPage() {
         setMaxParty(c.maxPartySize);
       })
       .catch(() => {});
+    peekTourStaff()
+      .then((res) => setIsStaff(res.isStaff))
+      .catch(() => setIsStaff(false));
   }, []);
 
   useEffect(() => {
@@ -165,6 +171,7 @@ export function BookingPage() {
           smsOptIn,
           tourDate: selectedDate,
           tourTime: selectedTime,
+          notifyCustomer: isStaff ? notifyCustomer : true,
         },
       });
       if (!res.ok) {
@@ -418,6 +425,17 @@ export function BookingPage() {
                             />
                             I agree to receive appointment reminders by text. Message and data rates may apply.
                           </label>
+                          {isStaff ? (
+                            <label className="flex items-start gap-3 text-sm leading-relaxed">
+                              <input
+                                type="checkbox"
+                                className="mt-1 size-4 accent-primary"
+                                checked={notifyCustomer}
+                                onChange={(e) => setNotifyCustomer(e.target.checked)}
+                              />
+                              Notify customer
+                            </label>
+                          ) : null}
                           {error ? <p className="text-sm text-danger">{error}</p> : null}
                           <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={!canSubmit}>
                             {submitting ? "Sending…" : "Request this tour"}

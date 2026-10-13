@@ -4,7 +4,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { GATE_SESSION_MARKER_COOKIE } from "@/lib/auth/gate-session-marker";
 import { SITE } from "./site";
-import { notifyBookingCreated, notifyBookingStatus } from "./tour-emails";
+import { notifyBookingCreated, notifyBookingRescheduled, notifyBookingStatus } from "./tour-emails";
+import { scheduleHistoryLine } from "./schedule-history";
 import { syncStaffCalendarSafe } from "./staff-calendar.server";
 import {
   addDaysIso,
@@ -40,6 +41,7 @@ export type BookingRow = {
   tourTime: string;
   status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show";
   staffNotes: string | null;
+  scheduleHistory: string | null;
   createdAt: string;
 };
 
@@ -108,6 +110,7 @@ function mapBooking(r: {
   tour_time: string;
   status: string;
   staff_notes: string | null;
+  schedule_history?: string | null;
   created_at: string;
 }): BookingRow {
   return {
@@ -121,9 +124,10 @@ function mapBooking(r: {
     notes: r.notes,
     smsOptIn: Boolean(r.sms_opt_in),
     tourDate: String(r.tour_date).slice(0, 10),
-    tourTime: r.tour_time,
+    tourTime: String(r.tour_time).slice(0, 5),
     status: r.status as BookingRow["status"],
     staffNotes: r.staff_notes,
+    scheduleHistory: r.schedule_history ?? null,
     createdAt: String(r.created_at),
   };
 }
@@ -204,6 +208,25 @@ async function assertAdmin(userId: string) {
   }
   return ctx;
 }
+
+async function callerIsStaff(): Promise<boolean> {
+  try {
+    const { requireUserId } = await import("@/lib/auth/verify.server");
+    const ctx = await staffContext(await requireUserId());
+    return ctx.isAdmin;
+  } catch {
+    return false;
+  }
+}
+
+async function guestShouldBeEmailed(notifyCustomer: boolean | undefined) {
+  if (notifyCustomer !== false) return true;
+  return !(await callerIsStaff());
+}
+
+export const peekTourStaff = createServerFn({ method: "GET" }).handler(async () => {
+  return { isStaff: await callerIsStaff() };
+});
 
 export const getPublicConfig = createServerFn({ method: "GET" }).handler(
   async () => {
@@ -350,6 +373,7 @@ const bookingInput = z.object({
   smsOptIn: z.boolean(),
   tourDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   tourTime: z.string().regex(/^\d{2}:\d{2}$/),
+  notifyCustomer: z.boolean().optional(),
 });
 
 export const createBooking = createServerFn({ method: "POST" })
@@ -429,7 +453,10 @@ export const createBooking = createServerFn({ method: "POST" })
         tourDate: String(row.tour_date).slice(0, 10),
         tourTime: row.tour_time,
       };
-      void notifyBookingCreated({ ...booking, tourMinutes: settings.tourMinutes });
+      void notifyBookingCreated(
+        { ...booking, tourMinutes: settings.tourMinutes },
+        { notifyCustomer: await guestShouldBeEmailed(data.notifyCustomer) },
+      );
       void syncStaffCalendarSafe({ ...booking, tourMinutes: settings.tourMinutes, status: "pending" });
       return {
         ok: true as const,
@@ -472,7 +499,7 @@ export const listBookings = createServerFn({ method: "POST" })
       ? await sql<Parameters<typeof mapBooking>[0]>`
           select id, guest_name, guest_email, guest_phone, party_size, relationship,
                  resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-                 staff_notes, created_at
+                 staff_notes, schedule_history, created_at
           from bookings
           where tour_date >= ${from} and tour_date <= ${to} and status = ${status}
           order by case when status = 'pending' then 0 when status = 'confirmed' then 1 else 2 end,
@@ -481,7 +508,7 @@ export const listBookings = createServerFn({ method: "POST" })
       : await sql<Parameters<typeof mapBooking>[0]>`
           select id, guest_name, guest_email, guest_phone, party_size, relationship,
                  resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-                 staff_notes, created_at
+                 staff_notes, schedule_history, created_at
           from bookings
           where tour_date >= ${from} and tour_date <= ${to}
           order by case when status = 'pending' then 0 when status = 'confirmed' then 1 else 2 end,
@@ -505,7 +532,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     const todayRows = await sql<Parameters<typeof mapBooking>[0]>`
       select id, guest_name, guest_email, guest_phone, party_size, relationship,
              resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-             staff_notes, created_at
+             staff_notes, schedule_history, created_at
       from bookings
       where tour_date = ${today} and status <> 'cancelled'
       order by tour_time asc
@@ -521,7 +548,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     const pendingRows = await sql<Parameters<typeof mapBooking>[0]>`
       select id, guest_name, guest_email, guest_phone, party_size, relationship,
              resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-             staff_notes, created_at
+             staff_notes, schedule_history, created_at
       from bookings
       where status = 'pending'
       order by tour_date asc, tour_time asc
@@ -529,7 +556,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     const upcomingRows = await sql<Parameters<typeof mapBooking>[0]>`
       select id, guest_name, guest_email, guest_phone, party_size, relationship,
              resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-             staff_notes, created_at
+             staff_notes, schedule_history, created_at
       from bookings
       where tour_date >= ${today} and tour_date <= ${weekEnd}
         and status in ('pending', 'confirmed')
@@ -553,6 +580,7 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
       id: z.number().int(),
       status: z.enum(["pending", "confirmed", "completed", "cancelled", "no_show"]),
       staffNotes: z.string().trim().max(2000).optional(),
+      notifyCustomer: z.boolean().optional(),
     }),
   )
   .handler(async ({ context, data }) => {
@@ -574,12 +602,14 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
     const [row] = await sql<Parameters<typeof mapBooking>[0] & { google_event_id: string | null }>`
       select id, guest_name, guest_email, guest_phone, party_size, relationship,
              resident_name, notes, sms_opt_in, tour_date, tour_time, status,
-             staff_notes, created_at, google_event_id
+             staff_notes, schedule_history, created_at, google_event_id
       from bookings where id = ${data.id}
     `;
     if (row) {
       const mapped = mapBooking(row);
-      void notifyBookingStatus(mapped, data.status);
+      if (data.notifyCustomer !== false) {
+        void notifyBookingStatus(mapped, data.status);
+      }
       const settings = await loadSettings();
       void syncStaffCalendarSafe({
         ...mapped,
@@ -588,6 +618,105 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
       });
     }
     return { ok: true as const };
+  });
+
+export const rescheduleBooking = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      id: z.number().int(),
+      tourDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      tourTime: z.string().regex(/^\d{2}:\d{2}$/),
+      notifyCustomer: z.boolean(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.userId);
+    const sql = await getSql();
+    const [current] = await sql<Parameters<typeof mapBooking>[0] & { google_event_id: string | null }>`
+      select id, guest_name, guest_email, guest_phone, party_size, relationship,
+             resident_name, notes, sms_opt_in, tour_date, tour_time, status,
+             staff_notes, schedule_history, created_at, google_event_id
+      from bookings where id = ${data.id}
+    `;
+    if (!current) return { ok: false as const, error: "That booking was not found." };
+    const existing = mapBooking(current);
+    if (existing.status === "cancelled" || existing.status === "completed" || existing.status === "no_show") {
+      return { ok: false as const, error: "Only a pending or confirmed visit can be moved." };
+    }
+    if (existing.tourDate === data.tourDate && existing.tourTime === data.tourTime) {
+      return { ok: true as const, booking: existing };
+    }
+
+    const settings = await loadSettings();
+    const today = todayInFacility();
+    if (data.tourDate < today || !slotIsInFuture(data.tourDate, data.tourTime, 0)) {
+      return { ok: false as const, error: "That time has already passed." };
+    }
+    const last = addDaysIso(today, settings.horizonDays);
+    const extras = await loadOpenTimesForDate(sql, data.tourDate);
+    const weekly =
+      data.tourDate <= last && settings.daysOfWeek.includes(weekdayOfIso(data.tourDate))
+        ? settings.slotTimes
+        : [];
+    if (!mergeSlotTimes(weekly, extras).includes(data.tourTime)) {
+      return {
+        ok: false as const,
+        error: "That time is not open. Pick a listed time, or open a special hour for that day first.",
+      };
+    }
+    const blocked = await sql<{ slot_time: string | null }>`
+      select slot_time from blocked_slots where slot_date = ${data.tourDate}
+    `;
+    if (blocked.some((b) => !b.slot_time || b.slot_time === data.tourTime)) {
+      return { ok: false as const, error: "That time is blocked. Pick another." };
+    }
+    const taken = await sql<{ id: number }>`
+      select id from bookings
+      where tour_date = ${data.tourDate}
+        and tour_time = ${data.tourTime}
+        and status <> 'cancelled'
+        and id <> ${data.id}
+      limit 1
+    `;
+    if (taken.length) {
+      return { ok: false as const, error: "Another family already has that time." };
+    }
+
+    const history = [existing.scheduleHistory, scheduleHistoryLine(existing.tourDate, existing.tourTime, data.tourDate, data.tourTime)]
+      .filter(Boolean)
+      .join("\n");
+    try {
+      await sql`
+        update bookings
+        set tour_date = ${data.tourDate},
+            tour_time = ${data.tourTime},
+            schedule_history = ${history},
+            updated_at = now()
+        where id = ${data.id}
+      `;
+    } catch {
+      return { ok: false as const, error: "That time was just taken. Please pick another." };
+    }
+
+    const moved = {
+      ...existing,
+      tourDate: data.tourDate,
+      tourTime: data.tourTime,
+      scheduleHistory: history,
+    };
+    if (data.notifyCustomer) {
+      void notifyBookingRescheduled(
+        { ...moved, tourMinutes: settings.tourMinutes },
+        { tourDate: existing.tourDate, tourTime: existing.tourTime },
+      );
+    }
+    void syncStaffCalendarSafe({
+      ...moved,
+      tourMinutes: settings.tourMinutes,
+      googleEventId: current.google_event_id,
+    });
+    return { ok: true as const, booking: moved };
   });
 
 export const saveStaffNotes = createServerFn({ method: "POST" })

@@ -62,21 +62,26 @@ function socialBlock(): string {
     </p>`;
 }
 
-export async function notifyBookingCreated(booking: MailBooking) {
+export async function notifyBookingCreated(
+  booking: MailBooking,
+  options?: { notifyCustomer?: boolean },
+) {
   const whenText = when(booking);
-  const guestLines = `
+  if (options?.notifyCustomer !== false) {
+    const guestLines = `
       <p style="margin:0 0 12px">Thank you, ${booking.guestName}. We received your private tour request.</p>
       <p style="margin:0 0 12px"><strong>${whenText}</strong></p>
       <p style="margin:0 0 12px">Our team will review this and email you when it is confirmed. If you need to change anything, call ${SITE.phone}.</p>
       ${calendarLinks(booking)}
       ${socialBlock()}
   `;
-  await sendStaffMailSafe({
-    to: booking.guestEmail,
-    subject: `We received your tour request — ${SITE.shortName}`,
-    text: `Thank you, ${booking.guestName}. We received your private tour request for ${whenText}. We will email you when it is confirmed. Call ${SITE.phone} with questions. Follow us: ${SITE.facebookUrl} ${SITE.instagramUrl}`,
-    html: wrap("Tour request received", guestLines),
-  });
+    await sendStaffMailSafe({
+      to: booking.guestEmail,
+      subject: `We received your tour request — ${SITE.shortName}`,
+      text: `Thank you, ${booking.guestName}. We received your private tour request for ${whenText}. We will email you when it is confirmed. Call ${SITE.phone} with questions. Follow us: ${SITE.facebookUrl} ${SITE.instagramUrl}`,
+      html: wrap("Tour request received", guestLines),
+    });
+  }
 
   const adminLines = `
       <p style="margin:0 0 12px">A family requested a private tour.</p>
@@ -96,10 +101,34 @@ export async function notifyBookingCreated(booking: MailBooking) {
   });
 }
 
+export async function notifyBookingRescheduled(
+  booking: MailBooking,
+  previous: { tourDate: string; tourTime: string },
+) {
+  const fromText = when(previous);
+  const whenText = when(booking);
+  await sendStaffMailSafe({
+    to: booking.guestEmail,
+    subject: `Your tour time has changed — ${SITE.shortName}`,
+    text: `Hi ${booking.guestName}, your private tour has been moved from ${fromText} to ${whenText}. ${SITE.address}. Call ${SITE.phone} if this time does not work.`,
+    html: wrap(
+      "Your tour time has changed",
+      `<p style="margin:0 0 12px">Hi ${booking.guestName}, your private tour has been moved.</p>
+       <p style="margin:0 0 8px">Previous time: ${fromText}</p>
+       <p style="margin:0 0 12px"><strong>New time: ${whenText}</strong></p>
+       <p style="margin:0 0 12px">${SITE.address}</p>
+       ${calendarLinks(booking)}
+       <p style="margin:16px 0 0">Please call ${SITE.phone} if this time does not work.</p>`,
+    ),
+  });
+}
+
 export async function notifyBookingStatus(
   booking: MailBooking,
   status: "pending" | "confirmed" | "completed" | "cancelled" | "no_show",
+  options?: { notifyCustomer?: boolean },
 ) {
+  if (options?.notifyCustomer === false) return;
   const whenText = when(booking);
   if (status === "confirmed") {
     await sendStaffMailSafe({

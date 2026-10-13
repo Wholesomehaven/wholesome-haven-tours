@@ -7,10 +7,12 @@ import {
   getAdminSettings,
   getDashboard,
   getStaffSession,
+  getSlotsForDate,
   listBlocks,
   listBookings,
   listOpenSlots,
   openSpecialSlot,
+  rescheduleBooking,
   saveAdminSettings,
   saveStaffNotes,
   unblockSlot,
@@ -440,12 +442,47 @@ function relationshipLabel(value: string | null) {
 function BookingCard({ booking, onChange }: { booking: BookingRow; onChange: () => void }) {
   const [open, setOpen] = useState(false);
   const [notes, setNotes] = useState(booking.staffNotes ?? "");
+  const [tourDate, setTourDate] = useState(booking.tourDate);
+  const [tourTime, setTourTime] = useState(booking.tourTime);
+  const [timeChoices, setTimeChoices] = useState<string[]>([booking.tourTime]);
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const canMove = booking.status === "pending" || booking.status === "confirmed";
+
+  useEffect(() => {
+    setNotes(booking.staffNotes ?? "");
+    setTourDate(booking.tourDate);
+    setTourTime(booking.tourTime);
+  }, [booking.id, booking.staffNotes, booking.tourDate, booking.tourTime]);
+
+  useEffect(() => {
+    if (!open || !tourDate) return;
+    let cancelled = false;
+    getSlotsForDate({ data: { date: tourDate } })
+      .then((res) => {
+        if (cancelled) return;
+        const openTimes = res.slots.filter((slot) => slot.open).map((slot) => slot.time);
+        if (tourDate === booking.tourDate && !openTimes.includes(booking.tourTime)) {
+          openTimes.push(booking.tourTime);
+        }
+        openTimes.sort();
+        setTimeChoices(openTimes);
+        setTourTime((current) => (openTimes.includes(current) ? current : openTimes[0] ?? current));
+      })
+      .catch(() => {
+        if (!cancelled) setTimeChoices(tourDate === booking.tourDate ? [booking.tourTime] : []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, tourDate, booking.tourDate, booking.tourTime]);
 
   async function setStatus(status: BookingRow["status"]) {
     setBusy(true);
+    setMessage(null);
     try {
-      await updateBookingStatus({ data: { id: booking.id, status } });
+      await updateBookingStatus({ data: { id: booking.id, status, notifyCustomer } });
       onChange();
     } finally {
       setBusy(false);
@@ -454,9 +491,29 @@ function BookingCard({ booking, onChange }: { booking: BookingRow; onChange: () 
 
   async function saveNotes() {
     setBusy(true);
+    setMessage(null);
     try {
       await saveStaffNotes({ data: { id: booking.id, staffNotes: notes } });
       onChange();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function moveVisit() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await rescheduleBooking({
+        data: { id: booking.id, tourDate, tourTime, notifyCustomer },
+      });
+      if (!res.ok) {
+        setMessage(res.error);
+        return;
+      }
+      onChange();
+    } catch (err) {
+      setMessage(errorMessage(err, "Could not move this visit."));
     } finally {
       setBusy(false);
     }
@@ -509,6 +566,56 @@ function BookingCard({ booking, onChange }: { booking: BookingRow; onChange: () 
           {booking.notes ? (
             <p className="rounded-md bg-bg px-3 py-2 leading-relaxed">{booking.notes}</p>
           ) : null}
+          {canMove ? (
+            <div className="grid gap-3 rounded-md bg-bg px-3 py-3">
+              <p className="font-medium">Reschedule</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`date-${booking.id}`}>New date</Label>
+                  <Input
+                    id={`date-${booking.id}`}
+                    type="date"
+                    value={tourDate}
+                    min={todayInFacility()}
+                    onChange={(e) => setTourDate(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor={`time-${booking.id}`}>New time</Label>
+                  <select
+                    id={`time-${booking.id}`}
+                    className="flex h-11 w-full rounded-md border border-border bg-surface px-3 text-base"
+                    value={tourTime}
+                    onChange={(e) => setTourTime(e.target.value)}
+                  >
+                    {timeChoices.length === 0 ? <option value="">No open times</option> : null}
+                    {timeChoices.map((time) => (
+                      <option key={time} value={time}>
+                        {formatTime(time)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <Button type="button" size="sm" disabled={busy || !tourDate || !tourTime || timeChoices.length === 0} onClick={moveVisit}>
+                Reschedule
+              </Button>
+            </div>
+          ) : null}
+          {booking.scheduleHistory ? (
+            <p className="whitespace-pre-wrap rounded-md bg-bg px-3 py-2 text-muted">
+              {booking.scheduleHistory}
+            </p>
+          ) : null}
+          <label className="flex items-start gap-3 text-sm leading-relaxed">
+            <input
+              type="checkbox"
+              className="mt-1 size-4 accent-primary"
+              checked={notifyCustomer}
+              onChange={(e) => setNotifyCustomer(e.target.checked)}
+            />
+            Notify customer
+          </label>
           <div className="grid gap-1.5">
             <Label htmlFor={`notes-${booking.id}`}>Staff notes</Label>
             <Textarea
@@ -521,6 +628,7 @@ function BookingCard({ booking, onChange }: { booking: BookingRow; onChange: () 
               Save notes
             </Button>
           </div>
+          {message ? <p className="text-sm text-danger">{message}</p> : null}
           <div className="flex flex-wrap gap-2">
             {booking.status === "pending" ? (
               <Button type="button" size="sm" disabled={busy} onClick={() => setStatus("confirmed")}>
